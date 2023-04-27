@@ -1,3 +1,4 @@
+// MY CODE
 #include <iostream>
 #include <string>
 #include <vector>
@@ -10,12 +11,12 @@ using namespace std;
 #define HUFFMAN_TREE_HEADER_H
 
 struct TreeNode
-{ 
-    char symbol; 
+{
+    char symbol;
+    int node_count;
     int frequency;
-    int node_count; 
-    TreeNode *left; 
-    TreeNode *right; 
+    TreeNode *left;
+    TreeNode *right;
 };
 
 struct comparator
@@ -24,15 +25,15 @@ struct comparator
     {
         if (left->frequency != right->frequency)
         {
-            return left->frequency > right->frequency; 
+            return left->frequency > right->frequency;
         }
         if(left->symbol == right->symbol && left->symbol == '\0')
         {
             return left->node_count < right->node_count;
         }
-        if(left->symbol == '\0') 
+        if(left->symbol == '\0')
             return false;
-        if(right->symbol == '\0') 
+        if(right->symbol == '\0')
             return true;
 
         return left->symbol > right->symbol;
@@ -40,7 +41,7 @@ struct comparator
 };
 
 class HuffmanTree
-{    
+{
     private:
         TreeNode* rootNode;
     public:
@@ -48,7 +49,7 @@ class HuffmanTree
     {
         rootNode = NULL;
     }
-    TreeNode* getRoot() 
+    TreeNode* getRoot()
     {
         return rootNode;
     }
@@ -74,7 +75,7 @@ class HuffmanTree
             TreePrioQueue.push(sumNode);
         }
         rootNode = TreePrioQueue.top();
-        printTree(rootNode," ");
+       // printTree(rootNode," ");
     }
 
     void printTree(TreeNode *root, string result) // prints the data of each tree nodes
@@ -83,66 +84,88 @@ class HuffmanTree
          {
             return;
          }
-        if (root->symbol != '\0') 
+        if (root->symbol != '\0')
         {
             cout << "Symbol: " << root->symbol << ", Frequency: " << root->frequency << ", Code:" << result << endl;
         }
 
         printTree(root->left, result + "0");
         printTree(root->right, result + "1");
+
      }
 };
 
-char BinToSymbols(TreeNode* treeRoot, const string& binCode, size_t pos) 
-{ 
-    if (pos == binCode.length()) 
+TreeNode* BinToSymbols(TreeNode* treeRoot, const string& binCode, size_t pos)
+{
+    if (pos == binCode.length())
     {
-        if (treeRoot->left == nullptr && treeRoot->right == nullptr) // check for leaf node
+        if (treeRoot->left == nullptr && treeRoot->right == nullptr)
         {
-            return treeRoot->symbol; // if is empty, assign it
-        } 
+            return treeRoot;
+        }
     }
-    if (binCode[pos] == '0') // if is 0 then assign that to the left leaf, since its the path
-        return BinToSymbols(treeRoot->left, binCode, pos + 1); 
-    else 
-        return BinToSymbols(treeRoot->right, binCode, pos + 1);// assign to right because it is pos of 1
+    if (binCode[pos] == '0')
+        return BinToSymbols(treeRoot->left, binCode, pos + 1);
+    else
+        return BinToSymbols(treeRoot->right, binCode, pos + 1);
 }
 
-void splitString(const string& inputString, const string& delimiter, vector<string>& outputVector)
+void splitString(string messageString, string delimiter, vector<string>& linesVector)
 {
-    size_t startIndex = 0;
-    size_t endIndex = inputString.find(delimiter);
+    size_t pos = 0;
+    string letter;
 
-    while (endIndex != string::npos)
+    while ((pos = messageString.find(delimiter)) != string::npos)
     {
-        outputVector.emplace_back(inputString.substr(startIndex, endIndex - startIndex));
-        startIndex = endIndex + delimiter.length();
-        endIndex = inputString.find(delimiter, startIndex);
+        letter = messageString.substr(0, pos);
+        linesVector.push_back(letter);
+        messageString.erase(0, pos + delimiter.length());
     }
-
-    outputVector.emplace_back(inputString.substr(startIndex));
+    linesVector.push_back(messageString);
 }
 
 struct ThreadInfo //info for to create Nth threads for each lines
-{ 
+{
         TreeNode *treeRoot;
-        HuffmanTree tree; 
+        HuffmanTree tree;
         string binCodeLine; // code from each line
         vector<int> indexes; // vector of indexes from each line
-        map<int,char> characterStorage; // map of each character and the position of it in the final message
-        pthread_mutex_t *bsem;
-        pthread_cond_t *mutex_turn, *waitTurn;
+        char* originMessage;
+        int* currentId;
+        int id;
+        pthread_mutex_t lockBinary;
+        pthread_mutex_t lockDecompress;
+        pthread_mutex_t lockPrint;
 };
 
 void *decompressionFunc(void *argument) //passing the information and the binary code for each threads (based on how many lines)
-{ 
+{
     ThreadInfo *arg = (ThreadInfo *)argument;
-    char symbolFromBin = BinToSymbols(arg->treeRoot, arg->binCodeLine, 0);
-    
-    for (const auto& pos : arg->indexes)
+    string binCodeLine = arg->binCodeLine;
+    vector<int> indexs = arg->indexes;
+    int id = arg->id;
+    int* currentId = arg->currentId;
+    pthread_mutex_unlock(&(arg->lockBinary));
+
+
+    TreeNode* decode = BinToSymbols(arg->treeRoot, binCodeLine, 0);
+    char symbolFromBin = decode->symbol;
+
+    while((*currentId) != id) continue;
+    pthread_mutex_lock(&(arg->lockPrint));
+    cout << "Symbol: " << decode->symbol << ", Frequency: " << decode->frequency << ", Code: " << binCodeLine << endl;
+    pthread_mutex_unlock(&(arg->lockPrint));
+
+
+
+
+    pthread_mutex_lock(&(arg->lockDecompress));
+    (*(currentId))++;
+    for (const auto& pos : indexs)
     {
-        arg->characterStorage[pos] = symbolFromBin;
+        arg->originMessage[pos] = symbolFromBin;
     }
+    pthread_mutex_unlock(&(arg->lockDecompress));
     return nullptr;
 }
 #endif
