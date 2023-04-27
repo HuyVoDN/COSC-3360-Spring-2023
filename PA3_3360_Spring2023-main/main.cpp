@@ -1,3 +1,4 @@
+// MY CODE
 #include "huffmanTree.h"
 #include <iostream>
 #include <fstream>
@@ -10,110 +11,96 @@ using namespace std;
 
 int main()
 {
-    pthread_mutex_t mutex1;
-    pthread_mutex_init(&mutex1, NULL); //init mate
-    pthread_cond_t waitTurn = PTHREAD_COND_INITIALIZER;
-    
+    pthread_mutex_t lockBinary;// critical section for binary string
+    pthread_mutex_t lockDecompress; // critical section for decompression 
+    pthread_mutex_t lockPrint; // critical section for output printing
+
+    pthread_mutex_init(&lockBinary, NULL); 
+    pthread_mutex_init(&lockDecompress, NULL); // critical section for decompression 
+    pthread_mutex_init(&lockPrint, NULL); // critical section for output printing
+
     string inputfilename;
-    char symbol; 
-    int freq; 
-    int totalFreq; 
+    char symbol;
+    int freq;
+    int totalFreq;
     string symbolString;
     string freqString;
-    
-    cin >> inputfilename;
-    ifstream inputFile(inputfilename); 
+
+    int sym;
+    cin >> sym; 
+    cin.ignore();
     priority_queue<TreeNode*, vector<TreeNode*>, comparator> pq;
-    map<int,char> originalMessage; // declare map of the position and the letter that corresponds to that position
-    
-    if (inputFile.good())
+
+    for( int i = 0; i < sym; i++)
     {
-        while (getline(inputFile, symbolString)) //read each line, create nodes for symbol, assign freq to each, add to prior queue later
-        {                                       
-            TreeNode *Node = new TreeNode;
-            symbol = symbolString[0]; //first index of inputfile = the letter
-            freqString = symbolString.substr(2); // last index of inputfile = the frequency
-            freq = stoi(freqString); 
-            totalFreq += freq; //add the total of freq
-            Node->symbol = symbol; // assign the data
-            Node->frequency = freq;
-            Node->left = NULL;
-            Node->right = NULL; 
-            pq.push(Node);
-        }
-    }
-    else
-    if (inputFile.fail()) // check for error inputfile
-    {
-        cout << "Wrong Input File name." << endl;
-        exit(0);
+        getline(cin, symbolString);
+        TreeNode *Node = new TreeNode;
+        symbol = symbolString[0]; //first index of inputfile = the letter
+        freqString = symbolString.substr(2); // last index of inputfile = the frequency
+        freq = stoi(freqString); // convert to int
+        totalFreq += freq; //add the total of freq
+        Node->symbol = symbol; // assign the data
+        Node->frequency = freq;
+        Node->left = nullptr;
+        Node->right = nullptr;
+        pq.push(Node);
     }
 
-    HuffmanTree tree = HuffmanTree(); 
+    char* originalMessage = new char[totalFreq];
+    HuffmanTree tree = HuffmanTree();
     tree.buildHuffmanTree(pq);// build the tree
 
-    string compressedfilename;
-    cin >> compressedfilename;
-    ifstream compressedFile(compressedfilename);
-    
     vector<pthread_t> threadVectors; // using vector for N-th Threads
-    vector<ThreadInfo*> threadReturns; // using vector for N-th of return Threads
+    int value = 0;
 
-    if (compressedFile.good()) // create N-th Threads for each line that it reads
+    ThreadInfo *arg = new ThreadInfo();
+    arg->tree = tree;
+    arg->treeRoot = tree.getRoot();
+    arg->lockBinary = lockBinary;
+    arg->lockDecompress = lockDecompress;
+    arg->originMessage = originalMessage;
+    arg->lockPrint = lockPrint;
+    arg->currentId = &value;
+
+    for(int i=0; i < sym; i++) // read line by line of compressedFile
     {
-        while (getline(compressedFile, symbolString)) // read line by line of compressedFile
+        getline(cin, symbolString);
+        vector<string> stringVectors;
+        splitString(symbolString, " ", stringVectors); // symbolString acts as the container for all the symbols
+        vector<int> indexVectors;
+        for (int i = 1; i < stringVectors.size(); i++)
         {
-            vector<string> stringVectors;
-            splitString(symbolString, " ", stringVectors); // symbolString acts as the container for all the symbols
-            vector<int> indexVectors; 
-
-            for (int i = 1; i < stringVectors.size(); i++)
-            {
-                indexVectors.push_back(stoi(stringVectors[i]));
-            }
-            ThreadInfo *arg = new ThreadInfo();
-            arg->binCodeLine = stringVectors[0];
-            arg->indexes = indexVectors;
-            arg->tree = tree;
-            arg->treeRoot = tree.getRoot();
-                    
-            pthread_t tid; 
-            if(pthread_create(&tid, NULL, decompressionFunc, (void*) arg)) //pthread creating that hold the huffman tree's info, the decompressed
-            {
-                 cout << "Error: Failed to create thread." << endl;
-                exit(0);
-            }  
-            threadVectors.push_back(tid); // add the new thread into the vector of threads 
-            threadReturns.push_back(arg); // add the information values it gathered to the vector of threads for return       
+            indexVectors.push_back(stoi(stringVectors[i]));
         }
+
+        pthread_mutex_lock(&(arg->lockBinary));
+        arg->id = i;
+        arg->binCodeLine = stringVectors[0];
+        arg->indexes = indexVectors;
+
+
+        pthread_t tid;
+        if(pthread_create(&tid, NULL, decompressionFunc, (void*) arg)) //pthread creating that hold the huffman tree's info, the decompressed
+        {
+            cout << "Error: Failed to create thread." << endl;
+            exit(0);
+        }
+        threadVectors.push_back(tid); // add the new thread into the vector of threads
     }
-    else
-    if(compressedFile.fail()) //check for compressedFile error
-    {
-        cout << "Wrong Compressed File Name." << endl;
-        exit(0);
-    }
-    
+
+
     for (int i = 0; i < threadVectors.size(); i++)
-    { 
-        pthread_join(threadVectors[i], NULL); //join the thread from the threadVectors
-    }    
-
-    for (const auto& threadReturner : threadReturns) // build map
-    { 
-       for(const auto& letterPosition: threadReturner->characterStorage)
-       {
-            originalMessage[letterPosition.first] = letterPosition.second; // read information from threadReturns to the originalMessage map
-       }
-    }
-    cout << "Original message: "; 
-
-    for(const auto& letters : originalMessage) 
     {
-        cout << letters.second; //print original message characters by characters
+        pthread_join(threadVectors[i], NULL); //join the thread from the threadVectors
     }
-    
-    inputFile.close();
-    compressedFile.close(); // close to avoid memory leak
+
+
+    cout << "Original message: ";
+
+    for(int i=0; i<totalFreq; i++)
+    {
+        cout << originalMessage[i]; //print original message characters by characters
+    }
+
     return 0;
 }
