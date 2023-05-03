@@ -1,4 +1,11 @@
-2nd Chance / CLOCK Algorithm
-<link>https://www.youtube.com/watch?v=C26qsPwf-Js&t=1s</link>
 Process Scheduling Solver
-<link>https://boonsuen.com/process-scheduling-solver</link>
+https://boonsuen.com/process-scheduling-solver
+
+Every Algorithms Explained
+https://onedrive.live.com/?authkey=%21AIb4MrFx2I1tqRE&id=EFB10C31BD8D9F96%2159621&cid=EFB10C31BD8D9F96&sw=bypassConfig
+
+Clock Algorithm Explained
+https://onedrive.live.com/?authkey=%21AHHwvPQ4Zh8MWY0&id=EFB10C31BD8D9F96%2159604&cid=EFB10C31BD8D9F96&parId=root&parQt=sharedby&parCid=46CF4E916707093A&o=OneUp
+
+Students Livestream of Algorithms
+https://drive.google.com/file/d/17Z4iaIs5MJu05noaod6o02eTfJ8GqyrK/view
