@@ -1,4 +1,3 @@
-// MY CODE
 #include "huffmanTree.h"
 #include <iostream>
 #include <fstream>
@@ -12,12 +11,11 @@ using namespace std;
 int main()
 {
     pthread_mutex_t lockBinary;// critical section for binary string
-    pthread_mutex_t lockDecompress; // critical section for decompression 
     pthread_mutex_t lockPrint; // critical section for output printing
-
-    pthread_mutex_init(&lockBinary, NULL); 
-    pthread_mutex_init(&lockDecompress, NULL); // critical section for decompression 
-    pthread_mutex_init(&lockPrint, NULL); // critical section for output printing
+    pthread_mutex_t lockDecompress; // critical section for decompression 
+    pthread_mutex_init(&lockBinary, NULL); // first lock
+    pthread_mutex_init(&lockPrint, NULL); // second lock
+    pthread_mutex_init(&lockDecompress, NULL); // third lock 
 
     string inputfilename;
     char symbol;
@@ -50,19 +48,19 @@ int main()
     HuffmanTree tree = HuffmanTree();
     tree.buildHuffmanTree(pq);// build the tree
 
-    vector<pthread_t> threadVectors; // using vector for N-th Threads
-    int value = 0;
+    vector<pthread_t> threadVectors; // using vector for firstline-th Threads
+    int value = 0; // this the value for mutex id basically, it is used for mutex syncing (relate to currentId from ThreadInfo) lmao.
 
     ThreadInfo *arg = new ThreadInfo();
     arg->tree = tree;
     arg->treeRoot = tree.getRoot();
     arg->lockBinary = lockBinary;
-    arg->lockDecompress = lockDecompress;
+    arg->lockDecompress = lockDecompress; //pass values into arguments one by one
     arg->originMessage = originalMessage;
     arg->lockPrint = lockPrint;
     arg->currentId = &value;
 
-    for(int i=0; i < sym; i++) // read line by line of compressedFile
+    for(int i=0; i < sym; i++) // read line by line 
     {
         getline(cin, symbolString);
         vector<string> stringVectors;
@@ -73,13 +71,13 @@ int main()
             indexVectors.push_back(stoi(stringVectors[i]));
         }
 
-        pthread_mutex_lock(&(arg->lockBinary));
-        arg->id = i;
-        arg->binCodeLine = stringVectors[0];
-        arg->indexes = indexVectors;
-
+        pthread_mutex_lock(&(arg->lockBinary)); // first lock due to critical section at Binary location read/changing
+        arg->id = i; // ASSIGN ID
+        arg->binCodeLine = stringVectors[0]; // assigning elements to binCodeLine field from stringVectors at index 0
+        arg->indexes = indexVectors; // POSITIONS OF THEM
 
         pthread_t tid;
+        //PTHREAD CREATE
         if(pthread_create(&tid, NULL, decompressionFunc, (void*) arg)) //pthread creating that hold the huffman tree's info, the decompressed
         {
             cout << "Error: Failed to create thread." << endl;
@@ -87,14 +85,12 @@ int main()
         }
         threadVectors.push_back(tid); // add the new thread into the vector of threads
     }
-
-
+    //PTHREAD JOIN
     for (int i = 0; i < threadVectors.size(); i++)
     {
         pthread_join(threadVectors[i], NULL); //join the thread from the threadVectors
     }
-
-
+    // FINALLY WE PRINT THIS ORIGINAL MESSAGE THINGY LOL
     cout << "Original message: ";
 
     for(int i=0; i<totalFreq; i++)
